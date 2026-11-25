@@ -1,95 +1,59 @@
-// Warung Rush — tiny synthesised sounds. No audio files are shipped:
-// every effect is a short WebAudio oscillator or noise burst, built on the
-// first user gesture so browsers never block it.
+// Warung Rush — audio.js
+// One job: every sound the game makes, synthesized live with WebAudio.
+// No audio files, no network — a tiny synth per effect.
 
 let audioCtx = null;
 
-export function ensureAudio() {
+function ctx() {
   if (!audioCtx) {
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) audioCtx = new AC();
-    } catch (err) {
-      audioCtx = null;
-    }
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    audioCtx = new AudioContext();
   }
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
 
-function tone(freq, seconds, type, volume, when) {
-  if (!audioCtx) return;
-  const start = audioCtx.currentTime + (when || 0);
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
+function tone(freq, dur, type, vol, slideTo) {
+  const ac = ctx();
+  if (!ac) return;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
   osc.type = type || 'sine';
-  osc.frequency.setValueAtTime(freq, start);
-  gain.gain.setValueAtTime(volume || 0.12, start);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + seconds);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start(start);
-  osc.stop(start + seconds + 0.02);
+  osc.frequency.setValueAtTime(freq, ac.currentTime);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime + dur);
+  gain.gain.setValueAtTime(vol || 0.15, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+  osc.connect(gain).connect(ac.destination);
+  osc.start();
+  osc.stop(ac.currentTime + dur);
 }
 
-function noiseBurst(seconds, volume, filterFreq) {
-  if (!audioCtx) return;
-  const length = Math.floor(audioCtx.sampleRate * seconds);
-  const buffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
+function noise(dur, vol, freq) {
+  const ac = ctx();
+  if (!ac) return;
+  const len = Math.floor(ac.sampleRate * dur);
+  const buffer = ac.createBuffer(1, len, ac.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  const filter = audioCtx.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = filterFreq || 3000;
-  const gain = audioCtx.createGain();
-  gain.gain.value = volume || 0.1;
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioCtx.destination);
-  source.start();
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = freq || 1200;
+  const gain = ac.createGain();
+  gain.gain.value = vol || 0.2;
+  src.connect(filter).connect(gain).connect(ac.destination);
+  src.start();
 }
 
-export function playClick(muted) {
-  if (muted || !audioCtx) return;
-  tone(660, 0.06, 'square', 0.06);
-}
-
-export function playAdd(muted) {
-  if (muted || !audioCtx) return;
-  tone(520, 0.07, 'triangle', 0.1);
-  tone(780, 0.08, 'triangle', 0.08, 0.05);
-}
-
-export function playSizzle(muted) {
-  if (muted || !audioCtx) return;
-  noiseBurst(0.35, 0.12, 4200);
-}
-
-export function playDing(muted) {
-  if (muted || !audioCtx) return;
-  tone(880, 0.12, 'sine', 0.12);
-  tone(1318, 0.18, 'sine', 0.1, 0.1);
-}
-
-export function playLevelUp(muted) {
-  if (muted || !audioCtx) return;
-  tone(523, 0.1, 'triangle', 0.1);
-  tone(659, 0.1, 'triangle', 0.1, 0.08);
-  tone(784, 0.16, 'triangle', 0.12, 0.16);
-}
-
-export function playBuzzer(muted) {
-  if (muted || !audioCtx) return;
-  tone(180, 0.25, 'sawtooth', 0.1);
-  tone(140, 0.3, 'sawtooth', 0.1, 0.12);
-}
-
-export function playBurn(muted) {
-  if (muted || !audioCtx) return;
-  noiseBurst(0.5, 0.14, 900);
-  tone(220, 0.3, 'sawtooth', 0.08, 0.05);
-}
+export const sounds = {
+  click() { tone(700, 0.06, 'triangle', 0.12); },
+  chop() { noise(0.09, 0.25, 900); tone(180, 0.08, 'square', 0.08); },
+  sizzle() { noise(0.5, 0.12, 3200); },
+  ding() { tone(880, 0.25, 'sine', 0.18); tone(1320, 0.3, 'sine', 0.12); },
+  coin() { tone(988, 0.09, 'square', 0.12); setTimeout(() => tone(1319, 0.16, 'square', 0.12), 70); },
+  fail() { tone(220, 0.3, 'sawtooth', 0.12, 110); },
+  levelUp() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.18, 'triangle', 0.15), i * 90)); },
+  burn() { noise(0.4, 0.2, 300); tone(150, 0.4, 'sawtooth', 0.1, 60); },
+};

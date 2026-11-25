@@ -1,71 +1,64 @@
-# Warung Rush — Masak Cepat, Sajikan Cepat
+# Warung Rush — Game Masak Warung
 
 [![make.fun · best-cooking-game-20261125-0137](https://make.fun/badge/best-cooking-game-20261125-0137.svg)](https://make.fun/bounty/best-cooking-game-20261125-0137?utm_source=github&utm_medium=readme&utm_campaign=best-cooking-game-20261125-0137)
-[![Rank](https://make.fun/badge/best-cooking-game-20261125-0137/dewikagura/best-cooking-game-20261125-0137/rank.svg)](https://make.fun/bounty/best-cooking-game-20261125-0137/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-cooking-game-20261125-0137)
-[![Reward](https://make.fun/badge/best-cooking-game-20261125-0137/dewikagura/best-cooking-game-20261125-0137/reward.svg)](https://make.fun/bounty/best-cooking-game-20261125-0137?utm_source=github&utm_medium=readme&utm_campaign=best-cooking-game-20261125-0137)
+[![make.fun · best-cooking-game-20261125-0137 rank](https://make.fun/badge/best-cooking-game-20261125-0137/dewikagura/best-cooking-game-20261125-0137/rank.svg)](https://make.fun/bounty/best-cooking-game-20261125-0137/leaderboard)
+[![make.fun · best-cooking-game-20261125-0137 reward](https://make.fun/badge/best-cooking-game-20261125-0137/dewikagura/best-cooking-game-20261125-0137/reward.svg)](https://make.fun/bounty/best-cooking-game-20261125-0137)
 
-A complete, original cooking game for the make.fun "best cooking game" bounty.
-You run a small Indonesian warung kitchen: customers arrive with orders, you
-click ingredients on the counter to assemble dishes on plates, cook them on
-the wok or the grill, and serve before patience runs out — and before the
-food burns. Orders get faster, tips get bigger, and three walk-outs close
-the warung. One 3-minute shift, endless rush.
+**Warung Rush** is an original Indonesian warung cooking game. You run a small
+street-food stall for one 3-minute shift: customers arrive with tickets, you
+assemble their dish from 9 ingredients on the counter, cook it on the wok or
+the grill, and serve it before their patience runs out.
 
 ## How to play
 
-- **Click an ingredient** on the counter (or press keys 1–9) to add it to the
-  selected plate. Click a plate to select it.
-- **Match a recipe** exactly: Nasi Goreng (Nasi + Telur + Kecap),
-  Mie Ayam (Mie + Ayam + Sayur), Nasi Ayam (Nasi + Ayam + Sayur),
-  Sate Ayam (Sate + Kecap, grill), Es Teh (Teh + Es, no cooking).
-- **Click MASAK** on a finished plate to cook it on the wok or grill.
-  A cooked dish stays ready for a few seconds — serve it before it burns.
-- **Click a customer's ticket** to serve the matching ready plate. Fast
-  service pays a bigger tip and builds your combo.
-- **Space** starts the game, **R** restarts the shift, **Trash** clears a plate.
+- **Orders arrive on the board** at the top — each ticket shows the dish, its
+  price and a patience bar. A customer whose patience empties walks out, and
+  3 walk-outs close the warung.
+- **Build the dish on a plate**: click ingredients on the counter (or press
+  keys 1–9). Three plates are open at once — pick one with Q / W / E.
+- **Cook it**: dishes that need the wok or grill show a MASAK button. Food
+  left ready too long burns — serve it fast or throw it away.
+- **Serve**: click the matching ticket. Fast service pays a tip, and serving
+  in a row builds a combo (x2 at 3 in a row, x3 at 6) that multiplies every
+  price.
+- **Levels rise every 4 served orders**: customers arrive faster and lose
+  patience sooner, so the rush keeps growing.
 
-## Menu
+## The menu
 
-| Hidangan | Bahan | Masak | Harga |
+| Dish | Ingredients | Cook | Price |
 | --- | --- | --- | --- |
-| Nasi Goreng | Nasi + Telur + Kecap | Wok 4 dtk | Rp120 |
-| Mie Ayam | Mie + Ayam + Sayur | Wok 5 dtk | Rp140 |
-| Nasi Ayam | Nasi + Ayam + Sayur | Wok 4 dtk | Rp130 |
-| Sate Ayam | Sate + Kecap | Panggangan 6 dtk | Rp160 |
-| Es Teh | Teh + Es | — | Rp60 |
+| Nasi Goreng 🍳 | Nasi + Telur + Kecap | Wok 4s | Rp 12.000 |
+| Mie Ayam 🍜 | Mie + Ayam + Sayur | Wok 5s | Rp 11.000 |
+| Nasi Ayam 🍛 | Nasi + Ayam + Sayur | Wok 4s | Rp 13.000 |
+| Sate Ayam 🍢 | Sate + Kecap | Grill 6s | Rp 15.000 |
+| Es Teh 🧋 | Teh + Es | — | Rp 5.000 |
+
+## Controls
+
+- **Mouse**: click an ingredient to add it to the selected plate, click
+  MASAK to cook, click a ticket to serve the matching ready plate.
+- **Keys 1–9**: add an ingredient. **Q / W / E**: pick plate 1 / 2 / 3.
+  **T**: throw the selected plate away. **Space**: start. **R**: restart.
 
 ## Run it locally
 
-Serve the `game/` folder with any static server and open it in a desktop
-browser — no build step, no network:
-
 ```sh
-cd game && python3 -m http.server 8080
+cd game
+python3 -m http.server 8080
 # open http://localhost:8080
 ```
 
-Screenshot states (deterministic, for the entry's own screenshots):
+## Files
 
-```sh
-http://localhost:8080/?shot=cover      # busy kitchen mid-service
-http://localhost:8080/?shot=orders     # order board full of tickets
-http://localhost:8080/?shot=assembly   # a dish mid-assembly
-http://localhost:8080/?shot=serve      # a plate ready to serve
-```
+- `main.ts` — the hand-in program (Node 22, stdlib only): copies `game/`
+  and `screenshots/` to the output dir and writes `dossier.json`.
+- `game/index.html` + `game/src/` — the game itself, plain static files:
+  `config.js` (dishes, ingredients, levels), `state.js` (shift rules),
+  `render.js` (all drawing), `input.js` (mouse + keyboard), `audio.js`
+  (synth sounds), `main.js` (boot + frame loop + screenshot states).
+- `vendor/makefun-game.ts` — the kit's dossier library, unchanged.
+- `screenshots/` — 4 real renders of the game's own code (cover, orders,
+  assembly, serve), taken at 1280×800 with Playwright Chromium.
 
-## Hand in
-
-```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
-`main.ts` copies `game/` and `screenshots/` to the output directory and
-writes `dossier.json` with the vendored make.fun library
-(`vendor/makefun-game.ts`).
-
-## Sources
-
-- Art, names and recipes are original, drawn in code with the canvas API.
-- Sounds are synthesised with WebAudio — no audio files are shipped.
-
-Made with make.fun — ref 6t1r9fj9.
+Made for the make.fun best cooking game bounty by @dewi-123 (ref 6t1r9fj9).

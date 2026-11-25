@@ -1,119 +1,128 @@
-// Warung Rush — the entry point: canvas setup, the game loop, the title /
-// playing / game-over screens, and the deterministic ?shot= states used for
-// the entry's screenshots (each one a real state of the same game).
+// Warung Rush — main.js
+// One job: boot the game and run the frame loop. Wires config, state,
+// render and input together, and builds the deterministic ?shot= states
+// the screenshots are taken from (frozen frames, no timer running).
 
-import { CANVAS_W, CANVAS_H, matchRecipe } from './config.js';
-import { newGame, spawnCustomer, updateGame, emptyPlate } from './state.js';
-import { drawGame } from './render.js';
-import { handleClick, handleKey } from './input.js';
-import { ensureAudio, playLevelUp } from './audio.js';
+import { CANVAS_W, CANVAS_H } from './config.js';
+import { addIngredient, createState, spawnCustomer, startCooking, update } from './state.js';
+import { draw } from './render.js';
+import { attachInput } from './input.js';
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
 canvas.width = CANVAS_W;
 canvas.height = CANVAS_H;
+const ctx = canvas.getContext('2d');
 
 const params = new URLSearchParams(window.location.search);
-const shotName = params.get('shot');
+const shot = params.get('shot');
+const state = createState();
+attachInput(canvas, state);
+if (shot) buildShot(state, shot);
 
-let state = newGame(20261125);
-
-// Build one fixed, good-looking kitchen state per screenshot name.
-// Every shot is a real game state: same rules, same drawing, no staging code.
-function applyShot(name) {
-  const shot = newGame(20261125);
-  shot.screen = 'playing';
-  shot.messageTimer = 99;
-  const setPlate = (index, items, cooking, ready, burnLeft) => {
-    const plate = shot.plates[index];
-    plate.items = items;
-    plate.dish = matchRecipe(items);
-    if (cooking) { plate.cooking = cooking; plate.cookTime = plate.dish ? plate.dish.cook : 0; }
-    if (ready) { plate.ready = true; plate.burnLeft = burnLeft || 6; }
-  };
-  const addTicket = (dishId, patience, maxPatience, name, hue) => {
-    shot.customers.push({
-      id: shot.nextTicketId++, name, dishId,
-      patience, maxPatience, hue, arrivedAt: 0,
-    });
-  };
-  if (name === 'cover') {
-    shot.timeLeft = 92; shot.coins = 1240; shot.served = 9; shot.combo = 3; shot.bestCombo = 5; shot.level = 3;
-    shot.message = 'Sate Ayam siap! Antar sebelum hangus!';
-    addTicket('nasi-goreng', 12, 40, 'Budi', 20);
-    addTicket('mie-ayam', 30, 44, 'Sari', 200);
-    addTicket('sate-ayam', 38, 44, 'Agus', 280);
-    setPlate(0, ['nasi', 'telur'], 0, false, 0);
-    setPlate(1, ['mie', 'ayam', 'sayur'], 3.0, false, 0);
-    setPlate(2, ['sate', 'kecap'], 0, true, 4.2);
-    shot.selectedPlate = 0;
-  } else if (name === 'orders') {
-    shot.timeLeft = 168; shot.coins = 240; shot.served = 2; shot.combo = 1; shot.bestCombo = 2; shot.level = 1;
-    shot.message = 'Empat pesanan masuk! Racik dari bahan di counter.';
-    addTicket('nasi-goreng', 44, 46, 'Dewi', 340);
-    addTicket('es-teh', 42, 46, 'Rina', 60);
-    addTicket('sate-ayam', 40, 46, 'Joko', 140);
-    addTicket('mie-ayam', 38, 46, 'Maya', 260);
-  } else if (name === 'assembly') {
-    shot.timeLeft = 120; shot.coins = 480; shot.served = 4; shot.combo = 2; shot.bestCombo = 3; shot.level = 2;
-    shot.message = 'Tambah Kecap untuk Nasi Goreng di Piring 1!';
-    addTicket('nasi-goreng', 30, 42, 'Putri', 100);
-    addTicket('es-teh', 36, 42, 'Budi', 20);
-    setPlate(0, ['nasi', 'telur'], 0, false, 0);
-    setPlate(1, ['mie'], 0, false, 0);
-    shot.selectedPlate = 0;
-  } else if (name === 'serve') {
-    shot.timeLeft = 75; shot.coins = 860; shot.served = 6; shot.combo = 2; shot.bestCombo = 4; shot.level = 2;
-    shot.message = 'Nasi Goreng siap disajikan! Klik pesanan Budi!';
-    addTicket('nasi-goreng', 20, 40, 'Budi', 20);
-    addTicket('mie-ayam', 34, 44, 'Sari', 200);
-    setPlate(0, ['nasi', 'telur', 'kecap'], 0, true, 5.0);
-    shot.selectedPlate = 0;
-  }
-  return shot;
-}
-
-if (shotName) {
-  state = applyShot(shotName);
-  // Screenshot states hold still: no timers run, so the render is identical
-  // every time the same shot is opened.
-  state.screen = 'playing';
-} else {
-  state = newGame((Date.now() % 100000) | 0);
-}
-
-canvas.addEventListener('click', (event) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = (event.clientX - rect.left) * (CANVAS_W / rect.width);
-  const y = (event.clientY - rect.top) * (CANVAS_H / rect.height);
-  handleClick(state, x, y);
-});
-
-window.addEventListener('keydown', (event) => {
-  if (event.key === ' ') event.preventDefault();
-  handleKey(state, event.key);
-});
-
-canvas.addEventListener('pointerdown', () => ensureAudio(), { once: true });
-
-let lastTime = performance.now();
+let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - lastTime) / 1000);
-  lastTime = now;
-  if (!shotName) {
-    const levelBefore = state.level;
-    updateGame(state, dt);
-    if (state.level > levelBefore) playLevelUp(state.muted);
-  }
-  drawGame(ctx, state);
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (!shot) update(state, dt);
+  draw(ctx, state, now / 1000);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-// Exposed for automated play-testing: the test driver reads and drives it.
-window.__warung = {
-  get state() { return state; },
-  click(x, y) { handleClick(state, x, y); },
-  key(k) { handleKey(state, k); },
-  start() { state.screen = 'title'; handleClick(state, 640, 593); },
-};
+// Deterministic screenshot states: fixed customers, plates and HUD numbers,
+// with the timer frozen (main.js never calls update() in shot mode) so
+// every capture of the same state looks the same.
+function buildShot(state, shot) {
+  state.screen = 'playing';
+  state.over = false;
+  if (shot === 'cover') {
+    // The cover must show everything at once: a full board, one plate
+    // mid-assembly, one plate ready to serve, one dish on the wok, a combo
+    // burning and the shift timer ticking.
+    state.timeLeft = 132;
+    state.coins = 24000;
+    state.tips = 3500;
+    state.served = 5;
+    state.combo = 4;
+    state.bestCombo = 4;
+    state.level = 2;
+    spawnCustomer(state, 'nasi-goreng');
+    spawnCustomer(state, 'mie-ayam');
+    spawnCustomer(state, 'sate-ayam');
+    state.customers[0].patience = 38; state.customers[0].patienceMax = 42;
+    state.customers[1].patience = 22; state.customers[1].patienceMax = 42;
+    state.customers[2].patience = 9; state.customers[2].patienceMax = 42;
+    state.selectedPlate = 0;
+    addIngredient(state, 'nasi');
+    addIngredient(state, 'telur');
+    state.selectedPlate = 1;
+    addIngredient(state, 'sate');
+    addIngredient(state, 'kecap');
+    startCooking(state, 1);
+    state.plates[1].cooking = null;
+    state.plates[1].ready = true;
+    state.plates[1].burnLeft = 10;
+    state.selectedPlate = 2;
+    addIngredient(state, 'nasi');
+    addIngredient(state, 'telur');
+    addIngredient(state, 'kecap');
+    startCooking(state, 2);
+    state.plates[2].cooking.elapsed = 2.4;
+    state.selectedPlate = 0;
+  } else if (shot === 'orders') {
+    state.timeLeft = 165;
+    state.coins = 8000;
+    state.tips = 1200;
+    state.served = 2;
+    state.combo = 1;
+    state.bestCombo = 2;
+    state.level = 1;
+    spawnCustomer(state, 'nasi-ayam');
+    spawnCustomer(state, 'es-teh');
+    spawnCustomer(state, 'sate-ayam');
+    spawnCustomer(state, 'mie-ayam');
+    state.customers[0].patience = 40; state.customers[0].patienceMax = 45;
+    state.customers[1].patience = 33; state.customers[1].patienceMax = 45;
+    state.customers[2].patience = 18; state.customers[2].patienceMax = 45;
+    state.customers[3].patience = 7; state.customers[3].patienceMax = 45;
+  } else if (shot === 'assembly') {
+    state.timeLeft = 150;
+    state.coins = 12000;
+    state.tips = 1800;
+    state.served = 3;
+    state.combo = 2;
+    state.bestCombo = 3;
+    state.level = 1;
+    spawnCustomer(state, 'mie-ayam');
+    state.customers[0].patience = 30; state.customers[0].patienceMax = 45;
+    state.selectedPlate = 0;
+    addIngredient(state, 'mie');
+    addIngredient(state, 'ayam');
+    state.selectedPlate = 1;
+    addIngredient(state, 'nasi');
+    addIngredient(state, 'telur');
+    state.selectedPlate = 0;
+  } else if (shot === 'serve') {
+    state.timeLeft = 98;
+    state.coins = 31500;
+    state.tips = 6200;
+    state.served = 9;
+    state.combo = 6;
+    state.bestCombo = 6;
+    state.level = 3;
+    spawnCustomer(state, 'es-teh');
+    state.customers[0].patience = 26; state.customers[0].patienceMax = 39;
+    state.selectedPlate = 0;
+    addIngredient(state, 'teh');
+    addIngredient(state, 'es');
+    state.selectedPlate = 1;
+    addIngredient(state, 'nasi');
+    addIngredient(state, 'ayam');
+    addIngredient(state, 'sayur');
+    startCooking(state, 1);
+    state.plates[1].cooking.elapsed = 2;
+    state.selectedPlate = 2;
+    addIngredient(state, 'sate');
+    state.selectedPlate = 0;
+  }
+}
